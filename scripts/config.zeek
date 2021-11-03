@@ -13,8 +13,8 @@ const check_only_local_net_servers: bool = F;
 const pwned_pwd_sha1_file = "/pcap/pwned-pass.txt" &redef;
 
 
-## Default value for Corelight compatibility.
-const pwned_credentials::pwned_pwd_sha1_file = "pwned-passwords-sha1-reduced.intel";
+## Uncomment for Corelight compatibility.
+# const pwned_credentials::pwned_pwd_sha1_file = "pwned-passwords-sha1-reduced.intel";
 
 ## In a production environment, we recommend you set this to "F" for performance reasons.
 ## The http_request event will fire a lot, yet seldom are credentials submitted in the URI.
