@@ -7,6 +7,7 @@
 redef check_only_local_net_servers: bool = F;
 
 ## The name and path to the tab-deliminated file of pwned passwords.
+## Adjust this to your Zeek environment.
 ## "pwned-passwords-sha1-reduced.intel" input file stucture:
 #fields sha1hash    prevalence
 const pwned_pwd_sha1_file = "/pcap/pwned-pass.txt" &redef;
