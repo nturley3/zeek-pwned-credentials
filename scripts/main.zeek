@@ -138,30 +138,33 @@ event http_request(c: connection, method: string, original_URI: string,
         # See config.zeek for check_only_local_net_servers value.
         if (check_only_local_net_servers == F || (check_only_local_net_servers == T && Site::is_local_addr(c$id$resp_h) == F))
         {
-            # We don't need to proceed further if the parameters aren't in the URI.
-            if (username_sig not in unescaped_URI || password_sig not in unescaped_URI)
+            if (username_sig in unescaped_URI && password_sig in unescaped_URI)
             {
-                return;
+                local credential_table: table[string] of string;
+                credential_table=extract_credentials(unescaped_URI);
+                if (credential_table["username"] != "")
+                {
+                    c$http$username=credential_table["username"];
+                    if (credential_table["password"] != "")
+                    {
+                        @if (Cluster::is_enabled())
+                            # Chose c$id$orig_h as the key over c$id$resp_h as it gives a more even distribution.
+                            Cluster::publish_hrw(Cluster::proxy_pool, c$id$orig_h, pwned_credentials::check_haveibeenpwned, c, to_upper(sha1_hash(credential_table["password"])));
+                        @else
+                            event pwned_credentials::check_haveibeenpwned(c, to_upper(sha1_hash(credential_table["password"])));
+                        @endif
+                    }
+                    else
+                    {
+                        # No need to check haveibeenpwned for blank passwords.
+                        c$http$pwned_password = T;
+                    }
+                }
             }
-            local credential_table: table[string] of string;
-            credential_table=extract_credentials(unescaped_URI);
-            if (credential_table["username"] != "")
+            else
             {
-                c$http$username=credential_table["username"];
-                if (credential_table["password"] != "")
-                {
-                    @if (Cluster::is_enabled())
-                        # Chose c$id$orig_h as the key over c$id$resp_h as it gives a more even distribution.
-                        Cluster::publish_hrw(Cluster::proxy_pool, c$id$orig_h, pwned_credentials::check_haveibeenpwned, c, to_upper(sha1_hash(credential_table["password"])));
-                    @else
-                        event pwned_credentials::check_haveibeenpwned(c, to_upper(sha1_hash(credential_table["password"])));
-                    @endif
-                }
-                else
-                {
-                    # No need to check haveibeenpwned for blank passwords.
-                    c$http$pwned_password = T;
-                }
+                # We don't need to proceed further if the parameters aren't in the URI.
+                return;
             }
         }
     }
@@ -200,29 +203,28 @@ event http_message_done(c: connection, is_orig: bool, stat: http_message_stat) &
     {
         # We don't need to proceed further if the parameters aren't in the URI.
         # The performance impact of this depends on the length of the post_body recorded in a post_body script.
-        if (username_sig not in c$http?$post_body || password_sig not in c$http?$post_body)
+        if (username_sig in c$http?$post_body && password_sig in c$http?$post_body)
         {
-            return;
-        }
-        local credential_table: table[string] of string;
-        credential_table=extract_credentials(c$http$post_body);
-        # If we don't find a value for the username, then we don't need to check for a password.
-        if (credential_table["username"] != "")
-        {
-            c$http$username=credential_table["username"];
-            if (credential_table["password"] != "")
+            local credential_table: table[string] of string;
+            credential_table=extract_credentials(c$http$post_body);
+            # If we don't find a value for the username, then we don't need to check for a password.
+            if (credential_table["username"] != "")
             {
-                @if (Cluster::is_enabled())
-                    # Chose c$id$orig_h as the key over c$id$resp_h as it gives a more even distribution.
-                    Cluster::publish_hrw(Cluster::proxy_pool, c$id$orig_h, pwned_credentials::check_haveibeenpwned, c, to_upper(sha1_hash(credential_table["password"])));
-                @else
-                    event pwned_credentials::check_haveibeenpwned(c, to_upper(sha1_hash(credential_table["password"])));
-                @endif
-            }
-            else
-            {
-                #No need to check haveibeenpwned for blank passwords.
-                c$http$pwned_password = T;
+                c$http$username=credential_table["username"];
+                if (credential_table["password"] != "")
+                {
+                    @if (Cluster::is_enabled())
+                        # Chose c$id$orig_h as the key over c$id$resp_h as it gives a more even distribution.
+                        Cluster::publish_hrw(Cluster::proxy_pool, c$id$orig_h, pwned_credentials::check_haveibeenpwned, c, to_upper(sha1_hash(credential_table["password"])));
+                    @else
+                        event pwned_credentials::check_haveibeenpwned(c, to_upper(sha1_hash(credential_table["password"])));
+                    @endif
+                }
+                else
+                {
+                    #No need to check haveibeenpwned for blank passwords.
+                    c$http$pwned_password = T;
+                }
             }
         }
         return;
