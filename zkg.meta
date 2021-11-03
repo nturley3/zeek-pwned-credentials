@@ -1,10 +1,11 @@
 [package]
 description = Checks passwords against haveibeenpwned data
-tags = http, credentials, password
+tags = http, credentials, password, haveibeenpwned
 script_dir = scripts
 depends =
   zeek >=3.0.0
 suggests =
   https://github.com/nturley3/zeek-http-post-bodies >=3.0.0
   https://github.com/corelight/log-add-http-post-bodies branch=master
+  https://github.com/nturley3/zeek-http-basic-auth branch=master
   
