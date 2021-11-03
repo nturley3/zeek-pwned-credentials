@@ -1,9 +1,11 @@
 [package]
 description = Checks passwords against haveibeenpwned data
-tags = http
+tags = http, credentials, password
 script_dir = scripts
-version = 0.0.6
 depends =
-  bro >=2.5.0
-  https://github.com/byu-oit/ces-soc-bro-http_post_bodies >=3.0.0
+  zeek >=3.0.0
   https://github.com/byu-oit/ces-soc-bro-core_configs >=1.2.0
+suggests =
+  https://github.com/nturley3/zeek-http-post-bodies >=3.0.0
+  https://github.com/corelight/log-add-http-post-bodies branch=master
+  

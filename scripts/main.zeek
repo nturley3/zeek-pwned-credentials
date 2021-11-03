@@ -13,10 +13,9 @@ export
     redef enum Notice::Type += {
         ## Indicates this is a pwned-password notice
         PWNED_PASSWORD
-        
     };
     
-    # In the future we may also include the "prevalence" field.
+    # In the future we may also include the "prevalence" field, but it isn't being used right now.
     type pwned_pwd_sha1_idx: record {
         sha1hash: string;
     };
@@ -29,12 +28,6 @@ export
         #username: string &optional &log; 
         #sha1_pwd: string &optional &log; 
     #} &redef;
-
-    #const pwned_pwd_sha1_file = "/pcap/zeek_credential/pwned-passwords-sha1-reduced3.txt" &redef;
-    const pwned_pwd_sha1_file = "/pcap/pwned-pass.txt" &redef;
-    #const pwned_pwd_sha1_file = "/pcap/pwned-passwords-sha1.reduced3.txt" &redef;
-    #const check_uri_for_credentials: bool = F;
-    #const check_only_local_net_servers: bool = F;
 
     # We don't want to just find whenever the words appears, but we want to make sure it is a parameter.
     const username_sig: pattern = 
@@ -84,8 +77,6 @@ event pwned_credentials::check_haveibeenpwned(c: connection, sha1hash: string)
 {
     # The haveibeenpwned hashes are in uppercase. This function expects the hash to be passed in uppercase.
     # That's because we want as much work done on the workers as possible, and as little work done on the proxies.
-    # FEATURE RELEASE TO DO:
-    # Using K-anonimity could reduce the size of the input file. We may explore this further.
     if (sha1hash in pwned_pwd_sha1_set)
     {
         c$http$pwned_password = T;
@@ -102,7 +93,7 @@ event pwned_credentials::check_haveibeenpwned(c: connection, sha1hash: string)
     }
 }
 
-
+## Take in a string of parameters, check for and exctract credentials.
 function extract_credentials (http_parameters: string): table[string] of string
 {
     local credential_table: table[string] of string;
@@ -112,16 +103,21 @@ function extract_credentials (http_parameters: string): table[string] of string
 
     for ( i in vec_of_parameters )
     {
+        ## At this stage we should see vec_of_parameters[i]="key=value"
         if ( username_sig in vec_of_parameters[i] )
         {
             key_value_pair = split_string(vec_of_parameters[i], /=/);
-            if (|key_value_pair| >1)
+            ## At this stage we should see key_value_pair[0]=key (in this case the username sig),
+            ## and key_value_pair[1]=value (the actual username).
+            if (|key_value_pair| > 1)
             {
                 credential_table["username"]=key_value_pair[1];
             }
         }
         if ( password_sig in vec_of_parameters[i] )
         {
+            ## At this stage we should see key=value or vec_of_parameters[0]=the key (in this case the password sig),
+            ## and vec_of_parameters[1]=the value (the actual password).
             key_value_pair = split_string(vec_of_parameters[i], /=/);
             if (|key_value_pair| >1)
             {
@@ -133,47 +129,48 @@ function extract_credentials (http_parameters: string): table[string] of string
 }
 
 
-# This event will fire a lot, yet seldom are credentials submitted in the URI. For perfomance reasons this should be disabled by default.
-# In an enterprise environment, if someone really wanted to check for creds in the URI a good SIEM/Logging solution will let them search for it themselves.
-# To Do: Provide option to disable this check in the config file.
 event http_request(c: connection, method: string, original_URI: string,
                    unescaped_URI: string, version: string)
 {
-    # See config.zeek for check_only_local_net_servers value.
-    if (check_only_local_net_servers == T && Site::is_local_addr(c$id$resp_h) == F)
+    # See config.zeek for check_uri_for_credentials value.
+    if (check_uri_for_credentials == T)
     {
-        # Do this check 2nd for performance reasons because it's likely the check_uri_for_credentials will occur more frequently.
-        if (check_uri_for_credentials == T && username_sig in unescaped_URI && password_sig in unescaped_URI)
+        # See config.zeek for check_only_local_net_servers value.
+        if (check_only_local_net_servers == F || (check_only_local_net_servers == T && Site::is_local_addr(c$id$resp_h) == F))
         {
-            return;
-        }
-        local credential_table: table[string] of string;
-        credential_table=extract_credentials(unescaped_URI);
-        if (credential_table["username"] != "")
-        {
-            c$http$username=credential_table["username"];
-            if (credential_table["password"] != "")
+            # We don't need to proceed further if the parameters aren't in the URI.
+            if (username_sig not in unescaped_URI || password_sig not in unescaped_URI)
             {
-                @if (Cluster::is_enabled())
-                    # Chose c$id$orig_h as the key over c$id$resp_h as it gives a more even distribution.
-                    Cluster::publish_hrw(Cluster::proxy_pool, c$id$orig_h, pwned_credentials::check_haveibeenpwned, c, to_upper(sha1_hash(credential_table["password"])));
-                @else
-                    event pwned_credentials::check_haveibeenpwned(c, to_upper(sha1_hash(credential_table["password"])));
-                @endif
+                return;
             }
-            else
+            local credential_table: table[string] of string;
+            credential_table=extract_credentials(unescaped_URI);
+            if (credential_table["username"] != "")
             {
-                # No need to check haveibeenpwned for blank passwords.
-                c$http$pwned_password = T;
+                c$http$username=credential_table["username"];
+                if (credential_table["password"] != "")
+                {
+                    @if (Cluster::is_enabled())
+                        # Chose c$id$orig_h as the key over c$id$resp_h as it gives a more even distribution.
+                        Cluster::publish_hrw(Cluster::proxy_pool, c$id$orig_h, pwned_credentials::check_haveibeenpwned, c, to_upper(sha1_hash(credential_table["password"])));
+                    @else
+                        event pwned_credentials::check_haveibeenpwned(c, to_upper(sha1_hash(credential_table["password"])));
+                    @endif
+                }
+                else
+                {
+                    # No need to check haveibeenpwned for blank passwords.
+                    c$http$pwned_password = T;
+                }
             }
         }
     }
 }
 
-
-# At this point we should have the basic_auth and post-body data to test against.
+## Checking the Post Body.
+# At this event we should have the basic_auth and post-body data to test against.
 # There could be a scenario where a password is found in both basic_auth and the post_body. In
-# this case the basic_auth should take precedence for this log. In the future we may consider writing out an array
+# this case the basic_auth will take precedence for this log. In the future we may consider writing out an array
 # of usernames and pwn results.
 event http_message_done(c: connection, is_orig: bool, stat: http_message_stat) &priority=10
 {
@@ -198,17 +195,22 @@ event http_message_done(c: connection, is_orig: bool, stat: http_message_stat) &
         @endif
         return;
     }
+
     if (c$http?$post_body)
     {
-        local vector_keys: vector of string;
-        vector_keys = HTTP::extract_keys(c$http$post_body, /&/);
+        local vec_of_parameters: vector of string;
+        vec_of_parameters = HTTP::extract_keys(c$http$post_body, /&/);
         # The HTTP::extract_keys function will return a vector of size 1 if there are no key-value pairs.
         # For efficiency sake, we can ignore a size 1 vector to skip processing regex over a large single-key.
-        if (|vector_keys| > 1)
+        if (|vec_of_parameters| > 1)
         {
-            for (i in vector_keys)
+            for (i in vec_of_parameters)
             {
-                if (password_sig in vector_keys[i])
+                ## It is more efficient to do a prelimnary check for a password or username signature
+                ## than create data structure and search for the signatures.
+                # I could have chosen username_sig here, but password sig seems like it would be less prone to being true
+                # when credentials are not present.
+                if (password_sig in vec_of_parameters[i])
                 {
                     local credential_table: table[string] of string;
                     credential_table=extract_credentials(c$http$post_body);
