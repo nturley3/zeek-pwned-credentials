@@ -2,6 +2,6 @@
 ##
 
 @load packages/zeek-http-post-bodies
-@load packages/ces-soc-bro-core_configs
+#@load packages/ces-soc-bro-core_configs
 @load ./config.zeek
 @load ./main.zeek
