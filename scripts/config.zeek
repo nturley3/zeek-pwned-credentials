@@ -4,7 +4,7 @@
 ## Set this to True if you only want to check traffic destined to your define local networks regardless of origin.
 ## Set this to false if you want to check traffic destined to any network regardless of origin.
 ## Recommend setting this to "T" to consume fewer resources for Zeek clusters, but "F" if running on a pcap file. 
-check_only_local_net_servers: bool = F;
+const check_only_local_net_servers: bool = F;
 
 ## The name and path to the tab-deliminated file of pwned passwords.
 ## Adjust this to your Zeek environment.
@@ -14,19 +14,19 @@ const pwned_pwd_sha1_file = "/pcap/pwned-pass.txt" &redef;
 
 
 ## Default value for Corelight compatibility.
-pwned_credentials::pwned_pwd_sha1_file = "pwned-passwords-sha1-reduced.intel";
+const pwned_credentials::pwned_pwd_sha1_file = "pwned-passwords-sha1-reduced.intel";
 
 ## In a production environment, we recommend you set this to "F" for performance reasons.
 ## The http_request event will fire a lot, yet seldom are credentials submitted in the URI.
 ## Therefore, it probably isn't worth the performance impact to check the URI in a production environment.
-check_uri_for_credentials: bool = T;
+const check_uri_for_credentials: bool = T;
 
 ## Writes to the log the value of the password field. 
 ## Most Zeek admins should keep this at False! 
 ## Not implemented.
-# redef log_plaintext_password: bool = F;
+# const  log_plaintext_password: bool = F;
 
 ## Writes to the log the value of the hashed password. 
 ## Most Zeek admins should keep this at False! 
 ## Not implemented.
-# redef log_hashed_password: bool = F;
+# const  log_hashed_password: bool = F;
