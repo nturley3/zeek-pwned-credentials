@@ -199,6 +199,7 @@ event http_message_done(c: connection, is_orig: bool, stat: http_message_stat) &
     if (c$http?$post_body)
     {
         # We don't need to proceed further if the parameters aren't in the URI.
+        # The performance impact of this depends on the length of the post_body recorded in a post_body script.
         if (username_sig not in c$http?$post_body || password_sig not in c$http?$post_body)
         {
             return;
