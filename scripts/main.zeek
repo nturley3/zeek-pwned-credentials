@@ -198,47 +198,34 @@ event http_message_done(c: connection, is_orig: bool, stat: http_message_stat) &
 
     if (c$http?$post_body)
     {
-        local vec_of_parameters: vector of string;
-        vec_of_parameters = HTTP::extract_keys(c$http$post_body, /&/);
-        # The HTTP::extract_keys function will return a vector of size 1 if there are no key-value pairs.
-        # For efficiency sake, we can ignore a size 1 vector to skip processing regex over a large single-key.
-        if (|vec_of_parameters| > 1)
+        # We don't need to proceed further if the parameters aren't in the URI.
+        if (username_sig not in c$http?$post_body || password_sig not in c$http?$post_body)
         {
-            for (i in vec_of_parameters)
+            return;
+        }
+        local credential_table: table[string] of string;
+        credential_table=extract_credentials(c$http$post_body);
+        # If we don't find a value for the username, then we don't need to check for a password.
+        if (credential_table["username"] != "")
+        {
+            c$http$username=credential_table["username"];
+            if (credential_table["password"] != "")
             {
-                ## It is more efficient to do a prelimnary check for a password or username signature
-                ## than create data structure and search for the signatures.
-                # I could have chosen username_sig here, but password sig seems like it would be less prone to being true
-                # when credentials are not present.
-                if (password_sig in vec_of_parameters[i])
-                {
-                    local credential_table: table[string] of string;
-                    credential_table=extract_credentials(c$http$post_body);
-                    # If we don't find a username, then we don't need to check for a password.
-                    if (credential_table["username"] != "")
-                    {
-                        c$http$username=credential_table["username"];
-                        if (credential_table["password"] != "")
-                        {
-                            @if (Cluster::is_enabled())
-                                # Chose c$id$orig_h as the key over c$id$resp_h as it gives a more even distribution.
-                                Cluster::publish_hrw(Cluster::proxy_pool, c$id$orig_h, pwned_credentials::check_haveibeenpwned, c, to_upper(sha1_hash(credential_table["password"])));
-                            @else
-                                event pwned_credentials::check_haveibeenpwned(c, to_upper(sha1_hash(credential_table["password"])));
-                            @endif
-                        }
-                        else
-                        {
-                            #No need to check haveibeenpwned for blank passwords.
-                            c$http$pwned_password = T;
-                        }
-                    }
-                    return;
-                }
+                @if (Cluster::is_enabled())
+                    # Chose c$id$orig_h as the key over c$id$resp_h as it gives a more even distribution.
+                    Cluster::publish_hrw(Cluster::proxy_pool, c$id$orig_h, pwned_credentials::check_haveibeenpwned, c, to_upper(sha1_hash(credential_table["password"])));
+                @else
+                    event pwned_credentials::check_haveibeenpwned(c, to_upper(sha1_hash(credential_table["password"])));
+                @endif
+            }
+            else
+            {
+                #No need to check haveibeenpwned for blank passwords.
+                c$http$pwned_password = T;
             }
         }
-        else
-        {
+        return;
+
             # To be implemented at a later time.
             # Check if password is in XML
             #if (password_xml_sig in c$http?$post_body)
@@ -256,7 +243,6 @@ event http_message_done(c: connection, is_orig: bool, stat: http_message_stat) &
 
             #    }
             #}
-        }
     }
 }
 
