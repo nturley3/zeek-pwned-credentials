@@ -253,7 +253,6 @@ event http_message_done(c: connection, is_orig: bool, stat: http_message_stat) &
 event zeek_init()
 {
     # Because the haveibeenpwned data is so large, we want to only load it on proxies if available in a clustered environment.
-    # 
     @if ( !Cluster::is_enabled() || Cluster::local_node_type() == Cluster::PROXY)
         Input::add_table([$source=pwned_pwd_sha1_file, $name="pwned_password_sha1",
                     $idx=pwned_pwd_sha1_idx, $destination=pwned_pwd_sha1_set,
