@@ -6,9 +6,9 @@
 ## Recommend setting this to "T" to consume fewer resources for Zeek clusters, but "F" if running on a pcap file. 
 const check_only_local_net_servers: bool = F;
 
-## The name and path to the tab-deliminated file of pwned passwords. CORELIGHT instances should comment out this line and uncomment the next line.
+## The name and path to the tab-deliminated file of pwned passwords. CORELIGHT instances should comment out the line below and uncomment the next line.
 ## Adjust this to your Zeek environment. On most default Zeek installations, your default package and site config directory will be /opt/zeek/share/zeek/site.
-## In the local.zeek file, you can specify a default location for intel files
+## In the Zeek's local.zeek file, you can specify a default location for intel files
 ##      redef Intel::read_files += { "/directory/file.intel" };
 ## Or you can specify the file using the line below:
 ## "pwned-passwords-sha1-reduced.intel" input file stucture:
@@ -18,9 +18,6 @@ const pwned_pwd_sha1_file = "/opt/zeek/share/zeek/site/pwned-pass.tsv" &redef;
 ## For CORELIGHT installs, comment out the line above and uncomment the line below.
 # redef pwned_credentials::pwned_pwd_sha1_file = "pwned-pass.intel";
 
-
-## Uncomment for Corelight compatibility.
-# const pwned_credentials::pwned_pwd_sha1_file = "pwned-passwords-sha1-reduced.intel";
 
 ## In a production environment, we recommend you set this to "F" for performance reasons.
 ## The http_request event will fire a lot, yet seldom are credentials submitted in the URI.
