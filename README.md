@@ -7,7 +7,7 @@ Checks detected passwords against the more prevalent haveibeenpwned passwords (s
 
 ## Installation/Upgrade
 
-This script was written and tested using Zeek 3.0.11.
+This script was written and tested using Zeek 3.0.11 and 4.0.3.
 
 Use the Zeek package manager (zkg) to install and upgrade this module.
 
